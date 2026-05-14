@@ -17,7 +17,7 @@ FetchContent_MakeAvailable(
 
 add_library(rzstminfo STATIC)
 target_compile_features(rzstminfo PRIVATE cxx_std_23)
-target_sources(rzstminfo PUBLIC
+target_sources(rzstminfo PRIVATE
   src/SteamAccount.cpp
 )
 target_include_directories(rzstminfo 
