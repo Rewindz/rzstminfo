@@ -11,8 +11,15 @@ FetchContent_Declare(httplib
     GIT_SHALLOW TRUE
 )
 
+FetchContent_Declare(mbedtls
+    GIT_REPOSITORY https://github.com/Mbed-TLS/mbedtls.git
+    GIT_TAG v3.6.6
+    GIT_SHALLOW TRUE
+)
+
 FetchContent_MakeAvailable(
   httplib
+  mbedtls
 )
 
 add_library(rzstminfo STATIC)
@@ -26,3 +33,5 @@ PUBLIC
 PRIVATE
   "${httplib_SOURCE_DIR}"
 )
+target_compile_definitions(rzstminfo PRIVATE CPPHTTPLIB_MBEDTLS_SUPPORT)
+target_link_libraries(rzstminfo PRIVATE mbedtls)
