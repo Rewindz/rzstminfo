@@ -45,6 +45,11 @@ namespace rz
     }
   }
 
+  const std::string& SteamAccount::GetUName() const
+  {
+    return uname;
+  }
+
   bool SteamAccount::getUserName()
   {
     if(id64.empty())

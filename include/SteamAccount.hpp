@@ -21,6 +21,7 @@ namespace rz
     SteamAccount(const std::string& _id, SteamIDType _type);
 
     const std::string& GetId(SteamIDType _type = SteamIDType::STEAM_ID_64) const;
+    const std::string& GetUName() const;
     
     /*
       Fetch the Steam user's name.
