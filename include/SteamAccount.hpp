@@ -4,7 +4,11 @@
 #include <filesystem>
 #include <optional>
 #include <vector>
+#include <unordered_map>
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
+#include <functional>
 
 namespace rz
 {
@@ -42,14 +46,15 @@ namespace rz
   {
   public:
 
-    SteamAccount(const SteamAccount&) = default;
+    SteamAccount(const SteamAccount&) = delete;
+    SteamAccount& operator=(const SteamAccount&) = delete;
 
     SteamAccount(const std::string& _id, SteamIDType _type);
 
     SteamAccount(const AccountInfo& _accInfo);
 
     const std::string& GetId(SteamIDType _type = SteamIDType::STEAM_ID_64) const;
-    const std::string& GetUName() const;
+    std::string GetUName() const;
     const std::filesystem::path& GetUserdataPath() const;
 
     /**
@@ -102,6 +107,8 @@ namespace rz
     std::string id64, id3;
     std::string uname;
     std::filesystem::path userdataPath;
+
+    mutable std::shared_mutex uname_mutex;
     
     bool idConv(const std::string& _id, std::string& _res, SteamIDType _fromType);
     bool getUserName();
@@ -131,6 +138,29 @@ namespace rz
      * @brief Add accounts from the ${STEAMPATH}/config/loginusers.vdf file created by steam.
      */
     void AddAccountsFromLogin();
+
+    /**
+     * @brief Get the Account with ID64
+     * 
+     * @param _id64 The ID64 to match
+     * @return A pointer to the matching Steam account.
+     * Returns std::nullopt if a matching one isn't found.
+     */
+    std::optional<SteamAccount*> GetAccountFrom64(const std::string& _id64);
+
+    /**
+     * @brief Get all of the SteamAccounts
+     * 
+     * @return std::vector<SteamAccount*> 
+     */
+    std::vector<SteamAccount*> GetAccounts() const;
+
+    /**
+     * @brief Get all of the SteamAccounts as unordered_map
+     * 
+     * @return std::unordered_map<std::string, const SteamAccount*> 
+     */
+    std::unordered_map<std::string, const SteamAccount*> GetAccountsAsMap() const;
 
     /**
      * @return The singleton instance of SteamAccountsManager

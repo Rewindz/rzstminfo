@@ -10,6 +10,7 @@
 #include <chrono>
 #include <exception>
 #include <fstream>
+#include <ranges>
 
 #include <httplib.h>
 #include <vdf_parser.hpp>
@@ -80,20 +81,25 @@ namespace rz
 
   SteamAccount::SteamAccount(const AccountInfo& _accInfo)
   {
-    if(_accInfo.id3)
-      id3 = _accInfo.id3.value();
-    if(_accInfo.id64)
-      id64 = _accInfo.id64.value();
-    if(_accInfo.uname)
-      uname = _accInfo.uname.value();
+    id3 = _accInfo.id3.value_or("");
+    id64 = _accInfo.id64.value_or("");
+    SetUName(_accInfo.uname.value_or(""));
 
-    if(id3.empty() && !id64.empty()){
-      idConv(id64, id3, SteamIDType::STEAM_ID_64);
-    } else if(!id3.empty() && id64.empty()){
-      idConv(id3, id64, SteamIDType::STEAM_ID_3);
-    } else {
-      throw std::runtime_error("No ID was provided in AccountInfo");
+    if(id3.empty() && id64.empty()){
+      throw std::invalid_argument("Cannot create SteamAccount: Both id3 and id64 are empty.");
     }
+
+    if(id3.empty()){
+      idConv(id64, id3, SteamIDType::STEAM_ID_64);
+    } else if (id64.empty()){
+      idConv(id3, id64, SteamIDType::STEAM_ID_3);
+    }
+
+    auto optSteamPath = getSteamPath();
+    if(optSteamPath)
+      userdataPath = optSteamPath.value() / "userdata" / id3;
+    else
+      userdataPath = std::filesystem::path();
     
   }
 
@@ -109,8 +115,9 @@ namespace rz
     }
   }
 
-  const std::string& SteamAccount::GetUName() const
+  std::string SteamAccount::GetUName() const
   {
+    std::shared_lock lock(uname_mutex);
     return uname;
   }
 
@@ -136,6 +143,7 @@ namespace rz
 
   void SteamAccount::SetUName(const std::string& _uname)
   {
+    std::unique_lock lock(uname_mutex);
     uname = _uname;
   }
 
@@ -162,9 +170,13 @@ namespace rz
           startPos += startTag.length();
           size_t endPos = body.find(endTag, startPos);
           if(endPos != std::string::npos){
-              uname = body.substr(startPos, endPos - startPos);
-              if(uname.starts_with("<![CDATA[") && uname.ends_with("]]>")){
-                  uname = uname.substr(9, uname.length() - 12);
+              std::string fetchedName =  body.substr(startPos, endPos - startPos);
+              if(fetchedName.starts_with("<![CDATA[") && fetchedName.ends_with("]]>")){
+                fetchedName = fetchedName.substr(9, fetchedName.length() - 12);
+              }
+              {
+                std::unique_lock lock(uname_mutex);
+                uname = fetchedName;
               }
               return true;
           } else return false;
@@ -270,6 +282,37 @@ namespace rz
       }
       AddAccounts(infoArr);
     }
+  }
+
+  std::optional<SteamAccount*> SteamAccountsManager::GetAccountFrom64(const std::string& _id64)
+  {
+    auto res = std::ranges::find_if(accounts, [&_id64](const std::unique_ptr<SteamAccount>& acc){
+      return acc->GetId(SteamIDType::STEAM_ID_64) == _id64;
+    });
+    if(res == accounts.end())
+      return std::nullopt;
+    return (*res).get();
+  }
+
+  std::vector<SteamAccount*> SteamAccountsManager::GetAccounts() const
+  {
+    std::vector<SteamAccount*> res;
+    res.reserve(accounts.size());
+    for(const auto& acc : accounts)
+    {
+      res.push_back(acc.get());
+    }
+    return res;
+  }
+
+  std::unordered_map<std::string, const SteamAccount*> SteamAccountsManager::GetAccountsAsMap() const
+  {
+    std::unordered_map<std::string, const SteamAccount*> res;
+    res.reserve(accounts.size());
+    for(const auto& acc : accounts){
+      res.emplace(acc->GetId(SteamIDType::STEAM_ID_64), acc.get());
+    }
+    return res;
   }
 
   SteamAccountsManager& SteamAccountsManager::GetInstance()
