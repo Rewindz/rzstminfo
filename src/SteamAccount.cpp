@@ -6,13 +6,51 @@
 #include <format>
 #include <future>
 #include <thread>
+#include <cstdlib>
+#include <chrono>
+#include <exception>
+#include <fstream>
 
 #include <httplib.h>
+#include <vdf_parser.hpp>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 constexpr uint64_t STEAM_MAGIC_NUMBER = 76561197960265728;
 
 namespace rz
 {
+
+  bool AccountInfo::HasId() const
+  {
+    return id3.has_value() || id64.has_value();
+  }
+
+  std::optional<std::filesystem::path> getSteamPath()
+  {
+      static std::optional<std::filesystem::path> path = []() -> std::optional<std::filesystem::path> {
+          #ifdef __linux__
+              const char *homePath = std::getenv("HOME");
+              if(!homePath)
+                  return std::nullopt;
+              return std::filesystem::path(homePath) / ".steam" / "steam";
+          #endif
+          
+          #ifdef  _WIN32
+              char steamPath[MAX_PATH];
+              DWORD bufferSize = sizeof(steamPath);
+              LSTATUS status = RegGetValueA(HKEY_CURRENT_USER, "Software\\Valve\\Steam", "SteamPath", RRF_RT_REG_SZ, nullptr, steamPath, &bufferSize);
+              if (status == ERROR_SUCCESS) {
+                  return std::filesystem::path(steamPath);
+              }
+              return std::nullopt;
+          #endif
+      }();
+      return path;
+  }
 
   SteamAccount::SteamAccount(const std::string &_id, SteamIDType _type)
   {
@@ -31,6 +69,32 @@ namespace rz
         break;
       }
     }
+
+    auto optSteamPath = getSteamPath();
+    if(optSteamPath)
+      userdataPath = optSteamPath.value() / "userdata" / id3;
+    else
+      userdataPath = std::filesystem::path();
+    
+  }
+
+  SteamAccount::SteamAccount(const AccountInfo& _accInfo)
+  {
+    if(_accInfo.id3)
+      id3 = _accInfo.id3.value();
+    if(_accInfo.id64)
+      id64 = _accInfo.id64.value();
+    if(_accInfo.uname)
+      uname = _accInfo.uname.value();
+
+    if(id3.empty() && !id64.empty()){
+      idConv(id64, id3, SteamIDType::STEAM_ID_64);
+    } else if(!id3.empty() && id64.empty()){
+      idConv(id3, id64, SteamIDType::STEAM_ID_3);
+    } else {
+      throw std::runtime_error("No ID was provided in AccountInfo");
+    }
+    
   }
 
   const std::string& SteamAccount::GetId(SteamIDType _type) const
@@ -48,6 +112,31 @@ namespace rz
   const std::string& SteamAccount::GetUName() const
   {
     return uname;
+  }
+
+  const std::filesystem::path& SteamAccount::GetUserdataPath() const
+  {
+    return userdataPath;
+  }
+
+  bool SteamAccount::HasUserdataGameDir(const std::string& _gameId) const
+  {
+    auto path = userdataPath / _gameId;
+    return std::filesystem::exists(path) && std::filesystem::is_directory(path);
+  }
+
+  std::optional<std::filesystem::path> SteamAccount::GetUserdataGameDir(const std::string& _gameId) const
+  {
+    auto path = userdataPath / _gameId;
+    if(std::filesystem::exists(path) && std::filesystem::is_directory(path))
+      return path;
+    else
+      return std::nullopt;
+  }
+
+  void SteamAccount::SetUName(const std::string& _uname)
+  {
+    uname = _uname;
   }
 
   bool SteamAccount::getUserName()
@@ -103,7 +192,7 @@ namespace rz
       return false;
 
     uint64_t tmp = 0;
-    auto [ptr, ec] = std::from_chars(id3.data(), id3.data() + id3.size(), tmp);
+    auto [ptr, ec] = std::from_chars(_id.data(), _id.data() + _id.size(), tmp);
     if(ec != std::errc())
       return false;
 
@@ -121,6 +210,72 @@ namespace rz
       }
     }
     return true;
+  }
+
+  void SteamAccountsManager::AddAccounts(const AccountInfoArray& _accounts, bool _fetchNames)
+  {
+
+    activeBatches.erase(std::remove_if(activeBatches.begin(), activeBatches.end(), [](const std::future<void>& f){
+      return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+    }), activeBatches.end());
+    
+    std::vector<SteamAccount*> batch;
+    for(const auto& acc : _accounts)
+    {
+      if(!acc.HasId())
+      continue;
+      
+      accounts.push_back(std::make_unique<SteamAccount>(acc));
+      if(_fetchNames && !acc.uname){
+        batch.push_back(accounts.back().get());
+      }
+    }
+    
+    if(_fetchNames && !batch.empty())
+    {
+
+      auto worker = [batch]() -> void{
+        for(auto* acc : batch){
+          auto future = acc->FetchUserNameAsync();
+          future.wait();
+          std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+      };
+
+      activeBatches.push_back(std::async(std::launch::async, worker));
+
+    }
+
+  }
+
+  void SteamAccountsManager::AddAccountsFromLogin()
+  {
+    auto steamPathOpt = getSteamPath();
+    if(steamPathOpt){
+      AccountInfoArray infoArr;
+      
+      auto loginPath = steamPathOpt.value() / "config" / "loginusers.vdf";
+      std::ifstream loginStream(loginPath);
+      if(loginStream.is_open()){
+        auto root = tyti::vdf::read(loginStream);
+        loginStream.close();
+        for(const auto& [id64, child] : root.childs)
+        {
+            const auto& uname = child->attribs["PersonaName"];
+            AccountInfo info{};
+            info.id64 = id64;
+            info.uname = uname;
+            infoArr.push_back(info); 
+        }
+      }
+      AddAccounts(infoArr);
+    }
+  }
+
+  SteamAccountsManager& SteamAccountsManager::GetInstance()
+  {
+    static SteamAccountsManager instance;
+    return instance;
   }
 
 } // namespace rz

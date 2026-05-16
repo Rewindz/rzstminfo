@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.28)
 
 project(rzstminfo)
 
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 include(FetchContent)
 
 set(FETCHCONTENT_QUIET OFF)
@@ -22,8 +25,21 @@ FetchContent_MakeAvailable(
   mbedtls
 )
 
+FetchContent_Declare(valvevdf
+  GIT_REPOSITORY https://github.com/TinyTinni/ValveFileVDF.git
+  GIT_TAG v1.1.1
+  GIT_SHALLOW TRUE
+)
+
+FetchContent_GetProperties(valvevdf)
+if(NOT valvevdf_POPULATED)
+  FetchContent_Populate(valvevdf)
+endif()
+
+add_library(valvevdflib INTERFACE)
+target_include_directories(valvevdflib INTERFACE ${valvevdf_SOURCE_DIR}/include)
+  
 add_library(rzstminfo STATIC)
-target_compile_features(rzstminfo PRIVATE cxx_std_23)
 target_sources(rzstminfo PRIVATE
   src/SteamAccount.cpp
 )
@@ -34,4 +50,4 @@ PRIVATE
   "${httplib_SOURCE_DIR}"
 )
 target_compile_definitions(rzstminfo PRIVATE CPPHTTPLIB_MBEDTLS_SUPPORT)
-target_link_libraries(rzstminfo PRIVATE mbedtls)
+target_link_libraries(rzstminfo PRIVATE mbedtls valvevdflib)
