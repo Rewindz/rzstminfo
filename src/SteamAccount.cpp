@@ -61,7 +61,7 @@ namespace rz
               if (status == ERROR_SUCCESS) {
                 std::filesystem::path path(steamPath);
                 if(std::filesystem::exists(path))
-                  return path
+                  return path;
               }
               return std::nullopt;
           #elifdef __APPLE__
