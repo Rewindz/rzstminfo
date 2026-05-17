@@ -51,6 +51,13 @@ namespace rz
 
     SteamAccount(const std::string& _id, SteamIDType _type);
 
+    /**
+     * @brief Construct a new Steam Account with AccountInfo
+     * 
+     * @throws std::invalid_argument if a ID is not provided
+     * 
+     * @param _accInfo 
+     */
     SteamAccount(const AccountInfo& _accInfo);
 
     const std::string& GetId(SteamIDType _type = SteamIDType::STEAM_ID_64) const;
@@ -66,12 +73,19 @@ namespace rz
      */
     void SetUName(const std::string& _uname);
 
+    /**
+     * @brief Checks if the account has a userdata directory for the given gameID
+     * 
+     * @param _gameId The Steam gameID to check for
+     * @return true 
+     * @return false 
+     */
     bool HasUserdataGameDir(const std::string& _gameId) const;
 
     /**
-     * @brief Get the userdata directory for a given game id.
+     * @brief Get the userdata directory for a given gameID.
      * 
-     * @param _gameId The game's id you want to get the directory for.
+     * @param _gameId The game's ID you want to get the directory for.
      * 
      * @return std::nullopt if the path does not exist or is not a directory,
      * returns the filepath otherwise.
@@ -132,7 +146,22 @@ namespace rz
     SteamAccountsManager(SteamAccountsManager&&) = delete;
     SteamAccountsManager& operator=(SteamAccountsManager&&) = delete;
 
+    /**
+     * @brief Add accounts to the manager
+     * 
+     * @param _accounts std::vector of AccountInfo
+     * @param _fetchNames If true will dispatch threads to fetch account usernames
+     * after adding. Defaults to false.
+     */
     void AddAccounts(const AccountInfoArray& _accounts, bool _fetchNames = false);
+
+    /**
+     * @brief Add account to the manager
+     * 
+     * @param _account unique_ptr for the account
+     * @return the C-ptr of the account added
+     */
+    SteamAccount* AddAccount(std::unique_ptr<SteamAccount> _account);
 
     /**
      * @brief Add accounts from the ${STEAMPATH}/config/loginusers.vdf file created by steam.

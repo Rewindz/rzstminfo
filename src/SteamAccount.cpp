@@ -11,6 +11,8 @@
 #include <exception>
 #include <fstream>
 #include <ranges>
+#include <utility>
+#include <iostream>
 
 #include <httplib.h>
 #include <vdf_parser.hpp>
@@ -236,10 +238,13 @@ namespace rz
     {
       if(!acc.HasId())
       continue;
-      
-      accounts.push_back(std::make_unique<SteamAccount>(acc));
-      if(_fetchNames && !acc.uname){
-        batch.push_back(accounts.back().get());
+      try{
+        accounts.push_back(std::make_unique<SteamAccount>(acc));
+        if(_fetchNames && !acc.uname){
+          batch.push_back(accounts.back().get());
+        }
+      } catch (const std::invalid_argument& e) {
+        std::cerr << std::format("Failed to add account!\n{}\n", e.what());
       }
     }
     
@@ -258,6 +263,12 @@ namespace rz
 
     }
 
+  }
+
+  SteamAccount* SteamAccountsManager::AddAccount(std::unique_ptr<SteamAccount> _account)
+  {
+    accounts.push_back(std::move(_account));
+    return accounts.back().get();
   }
 
   void SteamAccountsManager::AddAccountsFromLogin()
@@ -290,7 +301,7 @@ namespace rz
       return acc->GetId(SteamIDType::STEAM_ID_64) == _id64;
     });
     if(res == accounts.end())
-      return std::nullopt;
+      return std::nullopt; 
     return (*res).get();
   }
 
