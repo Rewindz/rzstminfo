@@ -36,21 +36,44 @@ namespace rz
   {
       static std::optional<std::filesystem::path> path = []() -> std::optional<std::filesystem::path> {
           #ifdef __linux__
-              const char *homePath = std::getenv("HOME");
-              if(!homePath)
+              const char *home = std::getenv("HOME");
+              if(!home)
                   return std::nullopt;
-              return std::filesystem::path(homePath) / ".steam" / "steam";
-          #endif
-          
-          #ifdef  _WIN32
+
+              std::filesystem::path homePath(home);    
+              std::vector<std::filesystem::path> supportedPaths = {
+                homePath / ".steam" / "steam",
+                homePath / ".local" / "share" / "Steam",
+                homePath / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam",
+                homePath / "snap" / "steam" / "common" / ".steam" / "steam"
+              };
+
+              for(const auto& path : supportedPaths){
+                if(std::filesystem::exists(path))
+                  return path;
+              }
+              return std::nullopt; 
+          #elifdef _WIN32
               char steamPath[MAX_PATH];
               DWORD bufferSize = sizeof(steamPath);
               LSTATUS status = RegGetValueA(HKEY_CURRENT_USER, "Software\\Valve\\Steam", "SteamPath", RRF_RT_REG_SZ, nullptr, steamPath, &bufferSize);
               if (status == ERROR_SUCCESS) {
-                  return std::filesystem::path(steamPath);
+                std::filesystem::path path(steamPath);
+                if(std::filesystem::exists(path))
+                  return path
               }
               return std::nullopt;
+          #elifdef __APPLE__
+              const char* home = std::getenv("HOME");
+              if(!home)
+                return std::nullopt;
+              std::filesystem::path path = std::filesystem::path(homePath) / "Library" / "Application Support" / "Steam";
+              if(std::filesystem::exists(path))
+                return path;
+              return std::nullopt;
           #endif
+
+          return std::nullopt;
       }();
       return path;
   }

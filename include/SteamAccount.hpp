@@ -40,6 +40,12 @@ namespace rz
 
   using AccountInfoArray = std::vector<AccountInfo>;
 
+  /**
+   * @brief Get the Steam Path
+   * 
+   * @return Returns an optional std::filesystem::path. 
+   * std::nullopt if not found or OS not supported.
+   */
   std::optional<std::filesystem::path> getSteamPath();
 
   class SteamAccount
