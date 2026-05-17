@@ -1,6 +1,6 @@
 # rzstminfo
-
-## TODO
+*rzstminfo* is a small library to help interface with Steam accounts
+on the system
 
 ## Dependencies
 * [cpp-httplib](https://github.com/yhirose/cpp-httplib)

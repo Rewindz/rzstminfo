@@ -22,6 +22,7 @@
 #include <windows.h>
 #endif
 
+// Steam Base ID64
 constexpr uint64_t STEAM_MAGIC_NUMBER = 76561197960265728;
 
 namespace rz
@@ -267,7 +268,7 @@ namespace rz
           batch.push_back(accounts.back().get());
         }
       } catch (const std::invalid_argument& e) {
-        std::cerr << std::format("Failed to add account!\n{}\n", e.what());
+        std::cerr << std::format("[rzstminfo] Failed to add account!\n{}\n", e.what());
       }
     }
     
@@ -339,9 +340,9 @@ namespace rz
     return res;
   }
 
-  std::unordered_map<std::string, const SteamAccount*> SteamAccountsManager::GetAccountsAsMap() const
+  std::unordered_map<std::string, SteamAccount*> SteamAccountsManager::GetAccountsAsMap() const
   {
-    std::unordered_map<std::string, const SteamAccount*> res;
+    std::unordered_map<std::string, SteamAccount*> res;
     res.reserve(accounts.size());
     for(const auto& acc : accounts){
       res.emplace(acc->GetId(SteamIDType::STEAM_ID_64), acc.get());

@@ -20,7 +20,7 @@ namespace rz
   };
 
   /**
-   * @struct AccountFillInfo
+   * @struct AccountInfo
    * 
    * @brief Used to hold account info for filling SteamAccountsManager with accounts.
    * 
@@ -193,9 +193,10 @@ namespace rz
     /**
      * @brief Get all of the SteamAccounts as unordered_map
      * 
-     * @return std::unordered_map<std::string, const SteamAccount*> 
+     * @return std::unordered_map<std::string, const SteamAccount*>
+     * where the key is the ID64
      */
-    std::unordered_map<std::string, const SteamAccount*> GetAccountsAsMap() const;
+    std::unordered_map<std::string, SteamAccount*> GetAccountsAsMap() const;
 
     /**
      * @return The singleton instance of SteamAccountsManager
